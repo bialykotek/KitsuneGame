@@ -725,18 +725,6 @@
 
         return true;
       }
-
-      function entityInsideAnyPortal(entity) {
-        return (
-          (portals.red && aabb(entity, portals.red)) ||
-          (portals.blue && aabb(entity, portals.blue))
-        );
-      }
-
-      function canEntityUsePortal(entity, portal) {
-        return true;
-      }
-
       function updatePortalStateForEntity(entity, state) {
         state.red = !!(portals.red && aabb(entity, portals.red));
         state.blue = !!(portals.blue && aabb(entity, portals.blue));
@@ -1195,9 +1183,6 @@
         const py = player.y + player.h - PORTAL_H;
 
         if (!canPlacePortal(px, py)) {
-          showPortalMessage(
-            "Nie możesz postawić portalu w platformie/drzwiach albo zbyt blisko drugiego portalu.",
-          );
           return;
         }
 

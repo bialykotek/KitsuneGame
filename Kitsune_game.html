@@ -534,9 +534,12 @@
       const PLAYER_ICE_MAX_SPEED = 9.35;
       const PLAYER_ICE_FRICTION = 0.959289374066003;
       const PLAYER_JUMP_POWER = -14.3;
-      const PLAYER_DASH_SPEED = 19.25;
-      const PLAYER_DASH_FRAMES = 4.363636363636363;
+      const PLAYER_DASH_SPEED = 14;
+      const PLAYER_DASH_FRAMES = 6;
       const PLAYER_PORTAL_EXIT_SPEED = 7.7;
+      const BOX_PUSH_MIN_SPEED = 2.2;
+      const BOX_PUSH_SPEED_MULTIPLIER = 0.45;
+      const BOX_PUSH_MAX_SPEED = 6.5;
       const FRAME_W = 96,
         FRAME_H = 96;
       const ANIMS = {
@@ -660,6 +663,10 @@
       }
       function clone(obj) {
         return JSON.parse(JSON.stringify(obj));
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
       }
 
       function rectCenter(rect) {
@@ -1525,15 +1532,20 @@
           } else {
             // kolizja pozioma / pchnięcie
             const svx = player._savedVx || 0;
+            const pushPower = clamp(
+              Math.abs(svx) * BOX_PUSH_SPEED_MULTIPLIER,
+              BOX_PUSH_MIN_SPEED,
+              BOX_PUSH_MAX_SPEED,
+            );
             if (ol < or_) {
               // gracz z lewej pcha w prawo
               player.x = b.x - player.w;
-              b.vx = Math.max(b.vx, Math.max(svx * 1.3, 2.2));
+              b.vx = Math.max(b.vx, pushPower);
               playBoxPushSound();
             } else {
               // gracz z prawej pcha w lewo
               player.x = b.x + b.w;
-              b.vx = Math.min(b.vx, Math.min(svx * 1.3, -2.2));
+              b.vx = Math.min(b.vx, -pushPower);
               playBoxPushSound();
             }
           }
@@ -2670,8 +2682,6 @@
 
         let frameTime = timestamp - lastLoopTimestamp;
         lastLoopTimestamp = timestamp;
-
-        // Po powrocie do karty nie nadrabiamy ogromnej liczby update'ów naraz.
         frameTime = Math.min(frameTime, MAX_ACCUMULATED_TIME_MS);
         accumulatedTime += frameTime;
 

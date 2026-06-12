@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Kitsune — Edytor Leveli v2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Segoe UI,sans-serif;background:#fceee8;color:#5a3a2a;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{padding:8px 14px;background:#fff7f0;border-bottom:2px solid #e8aa72;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+button,select,input,textarea{font-family:inherit;border:1px solid #d4935a;border-radius:5px;background:#fffaf4;color:#5a3a2a;padding:5px 7px}
+button{cursor:pointer;font-weight:600}button:hover{background:#ffe6d2}
+.wrap{display:flex;flex:1;min-height:0;overflow:hidden}
+.side{width:300px;background:#fff7f0;border-right:2px solid #e8aa72;padding:10px;overflow-y:auto;flex-shrink:0}
+.canvasBox{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.topbar{padding:6px 10px;background:#fff1e5;border-bottom:1px solid #e8aa72;display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.topbar input[type=range]{flex:1;min-width:90px;max-width:280px}
+.hint{font-size:11px;color:#9a6954;line-height:1.4;margin:6px 0}
+.row{display:grid;grid-template-columns:90px 1fr;gap:6px;align-items:center;margin:5px 0}
+.row label{font-size:13px}
+.row input,.row select{font-size:13px;padding:4px 6px}
+canvas{display:block;image-rendering:pixelated;cursor:crosshair}
+.section{border:1px solid #e8aa72;border-radius:7px;padding:8px 10px;margin-bottom:10px;background:#fffaf4}
+h3{font-size:14px;color:#c05030;margin-bottom:7px;font-weight:700}
+#jsonBox{width:100%;height:150px;font-family:Consolas,monospace;font-size:11px;resize:vertical}
+.small{font-size:12px;color:#9a6954}
+.selectedName{font-weight:bold;color:#d46030;font-size:13px;margin-bottom:6px}
+.danger{background:#ffe0dc!important;border-color:#e07060!important}
+.danger:hover{background:#ffc8c0!important}
+.ok{background:#eaffdf!important;border-color:#70b050!important}
+.ok:hover{background:#d4f7be!important}
+.pill{padding:2px 7px;border:1px solid #e8aa72;border-radius:999px;font-size:11px;background:#fff;white-space:nowrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.activeTool{background:#ffe6d2;border-color:#c05030;color:#c05030}
+#canvasWrap{flex:1;overflow:hidden;position:relative}
+#undoInfo{font-size:11px;color:#9a6954}
+input[type=number]{-moz-appearance:textfield}
+.propSep{border:none;border-top:1px dashed #e8aa72;margin:5px 0}
+#resizeHandle{position:absolute;bottom:0;right:0;width:12px;height:12px;cursor:se-resize;background:rgba(200,100,50,.4);border-radius:2px 0 3px 0;display:none}
+</style>
+</head>
+<body>
+<header>
+  <b style="color:#c05030">Kitsune — edytor leveli</b>
+  <span class="pill">LPM: dodaj / zaznacz</span>
+  <span class="pill">Przeciągnij: przesuń</span>
+  <span class="pill">Shift+drag: bez snapu</span>
+  <span class="pill">Delete / X: usuń</span>
+  <span class="pill">Ctrl+Z: cofnij</span>
+  <span class="pill">Alt+drag: resize</span>
+  <span class="pill">Spacja + strzałki: przesuwaj kamerę</span>
+  <span class="pill">Obróć: zamienia W/H</span>
+</header>
+<div class="wrap">
+  <aside class="side">
+
+    <div class="section">
+      <h3>Narzędzie</h3>
+      <div class="row"><label>Typ</label>
+        <select id="tool">
+          <option value="platform">Zwykła platforma</option>
+          <option value="icePlatform">Lodowa platforma</option>
+          <option value="spawnerPlatform">Spawner pudełka (E)</option>
+          <option value="ghostPlatform">Widmo platformy</option>
+          <option value="movingPlatform">Ruchoma platforma</option>
+          <option value="box">Pudełko</option>
+          <option value="plate">Płytka naciskowa</option>
+          <option value="button">Przycisk E / timer</option>
+          <option value="door">Kamienne drzwi</option>
+          <option value="spirit_fire">Duszek ognia</option>
+          <option value="spirit_water">Duszek wody</option>
+          <option value="spirit_moon">Duszek księżyca</option>
+          <option value="windRune">Runa wiatru</option>
+          <option value="spawn">Spawn gracza</option>
+          <option value="altar">Ołtarz / mały filar</option>
+          <option value="deathPlatform">Platforma śmierci (czerwona)</option>
+          <option value="spike">Kolce</option>
+          <option value="endGate">Torii / end gate</option>
+        </select>
+      </div>
+      <div class="hint">Kliknij na mapie żeby dodać. Kliknij istniejący obiekt żeby zaznaczyć i przesunąć. <b>Alt+drag</b> zmienia rozmiar (gdzie dotyczy).</div>
+    </div>
+
+    <div class="section">
+      <h3>Rozmiar świata</h3>
+      <div class="row"><label>Szerokość</label><input id="worldW" type="number" value="5200"></div>
+      <div class="row"><label>Wysokość</label><input id="worldH" type="number" value="420"></div>
+      <button id="applyWorld" style="width:100%;margin-top:5px">Zastosuj rozmiar</button>
+    </div>
+
+    <div class="section">
+      <h3>Zaznaczony obiekt</h3>
+      <div id="selectedName" class="selectedName">— brak zaznaczenia —</div>
+      <div id="props"></div>
+      <div class="grid2" style="margin-top:8px">
+        <button id="duplicateBtn">Duplikuj</button>
+        <button id="rotateBtn">Obróć 90°</button>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <button id="deleteBtn" class="danger">Usuń (Del)</button>
+        <button id="centerOnSelectedBtn">Pokaż obiekt</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Logika aktywacji</h3>
+      <div class="hint">
+        <b>Płytka / Przycisk</b>: ma swoje <b>id</b> i pole <b>targetIds</b>, czyli ID tego, co aktywuje.<br>
+        <b>Drzwi / platforma</b>: mają tylko swoje <b>id</b>. Nie trzeba wpisywać targetów w dwóch miejscach.<br>
+        Przykład: płytka <b>targetIds: door_1</b> otwiera drzwi o <b>id: door_1</b>.
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Szybkie akcje</h3>
+      <div class="grid2">
+        <button id="selAll">Zaznacz wszystko</button>
+        <button id="moveToFloor">Na podłogę</button>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <button id="nudgeL">← 1px</button>
+        <button id="nudgeR">→ 1px</button>
+      </div>
+      <div class="grid2" style="margin-top:4px">
+        <button id="nudgeU">↑ 1px</button>
+        <button id="nudgeD">↓ 1px</button>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <button id="nudgeL10">← 10px</button>
+        <button id="nudgeR10">→ 10px</button>
+      </div>
+      <div class="grid2" style="margin-top:4px">
+        <button id="nudgeU10">↑ 10px</button>
+        <button id="nudgeD10">↓ 10px</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>JSON</h3>
+      <div class="grid2">
+        <button id="copyBtn" class="ok">📋 Kopiuj</button>
+        <button id="downloadBtn">💾 Pobierz</button>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <button id="exportBtn">🔄 Odśwież</button>
+        <button id="importBtn">📥 Wklej JSON</button>
+      </div>
+      <div class="grid2" style="margin-top:6px">
+        <button id="importFileBtn">📂 Import z pliku</button>
+        <button id="clearJsonBtn">🧹 Wyczyść pole</button>
+      </div>
+      <input id="jsonFileInput" type="file" accept=".json,application/json" style="display:none">
+      <textarea id="jsonBox" style="margin-top:8px"></textarea>
+      <div class="hint">Ten JSON wklejasz jako level do gry. Obsługuje też: ice, ghostPlatforms, buttons, targetIds, requiredPlateIds.</div>
+    </div>
+
+  </aside>
+
+  <main class="canvasBox">
+    <div class="topbar">
+      <label style="font-size:13px;white-space:nowrap">Kamera X</label>
+      <input id="scroll" type="range" min="0" max="4400" value="0">
+      <input id="scrollNum" type="number" value="0" style="width:65px;font-size:12px">
+      <label style="font-size:13px;white-space:nowrap">Kamera Y</label>
+      <input id="scrollY" type="range" min="-400" max="1200" value="0">
+      <input id="scrollYNum" type="number" value="0" style="width:65px;font-size:12px">
+      <label style="font-size:13px"><input id="snap" type="checkbox" checked> Snap 10px</label>
+      <span id="mouseInfo" class="small">x:0 y:0</span>
+      <span id="undoInfo" class="small"></span>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="c"></canvas>
+    </div>
+  </main>
+</div>
+
+<script>
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const scrollEl=document.getElementById('scroll');
+const scrollNum=document.getElementById('scrollNum');
+const scrollYEl=document.getElementById('scrollY');
+const scrollYNum=document.getElementById('scrollYNum');
+const toolEl=document.getElementById('tool');
+const snapEl=document.getElementById('snap');
+const mouseInfo=document.getElementById('mouseInfo');
+const propsDiv=document.getElementById('props');
+const selectedNameDiv=document.getElementById('selectedName');
+const undoInfoEl=document.getElementById('undoInfo');
+const canvasWrap=document.getElementById('canvasWrap');
+
+let cameraX=0,cameraY=0,selected=null;
+let drag=false,dragDX=0,dragDY=0;
+let resizing=false,resizeDX=0,resizeDY=0,resizeOrigW=0,resizeOrigH=0;
+let idCounter=100;
+let undoStack=[],undoMax=40;
+let spaceHeld=false;
+
+let level={
+  world:{width:5200,height:420},
+  spawn:{x:80,y:270},
+  platforms:[
+    {x:0,y:370,w:5200,h:50},
+    {x:260,y:250,w:180,h:18},{x:600,y:300,w:150,h:18},{x:920,y:235,w:170,h:18},
+    {x:1250,y:285,w:170,h:18},{x:1600,y:185,w:220,h:18},{x:2050,y:260,w:210,h:18},
+    {x:2500,y:170,w:190,h:18},{x:2920,y:250,w:210,h:18},{x:3370,y:205,w:230,h:18},
+    {x:3850,y:265,w:240,h:18},{x:4320,y:210,w:240,h:18},{x:4780,y:300,w:230,h:18}
+  ],
+  movingPlatforms:[
+    {x:720,y:160,w:120,h:18,axis:'x',range:220,speed:0.96},
+    {x:1760,y:120,w:120,h:18,axis:'x',range:300,speed:1.2},
+    {x:3030,y:145,w:120,h:18,axis:'x',range:250,speed:0.8},
+    {x:4100,y:135,w:120,h:18,axis:'y',range:70,speed:0.98}
+  ],
+  boxes:[{x:1080,y:325,w:42,h:45},{x:2380,y:325,w:42,h:45},{x:3660,y:325,w:42,h:45}],
+  plates:[
+    {id:'plate_1',x:1170,y:356,w:70,h:14,doorId:'door_1'},
+    {id:'plate_2',x:2470,y:356,w:70,h:14,doorId:'door_2'},
+    {id:'plate_3',x:3770,y:356,w:70,h:14,doorId:'door_3'}
+  ],
+  doors:[
+    {id:'door_1',x:1325,y:280,w:36,h:90},
+    {id:'door_2',x:2625,y:280,w:36,h:90},
+    {id:'door_3',x:3925,y:280,w:36,h:90}
+  ],
+  spirits:[
+    {id:'fire',type:'fire',x:940,y:190},
+    {id:'water',type:'water',x:2525,y:125},
+    {id:'moon',type:'moon',x:4380,y:165}
+  ],
+  powerups:[{id:'wind_rune',type:'windRune',x:1810,y:75,jumpBoost:-9.5}],
+  buttons:[],
+  ghostPlatforms:[],
+  deathPlatforms:[],
+  spikes:[],
+  altar:{x:4885,y:310,w:45,h:60},
+  endGate:{x:5060,y:255,w:100,h:115}
+};
+
+function snapV(v,e){
+  if(snapEl.checked&&!(e&&e.shiftKey))return Math.round(v/10)*10;
+  return Math.round(v);
+}
+
+function getMouse(e){
+  const r=canvas.getBoundingClientRect();
+  return{x:e.clientX-r.left+cameraX,y:e.clientY-r.top+cameraY};
+}
+
+function rectOf(ref){
+  const o=ref.obj;
+  if(ref.kind==='spirit'||ref.kind==='powerup')return{x:o.x-15,y:o.y-15,w:30,h:30};
+  if(ref.kind==='spawn')return{x:level.spawn.x,y:level.spawn.y,w:25,h:80};
+  return{x:o.x,y:o.y,w:o.w||20,h:o.h||20};
+}
+
+function allRefs(){
+  const a=[];
+  level.platforms.forEach((o,i)=>a.push({kind:'platform',arr:level.platforms,i,obj:o}));
+  level.movingPlatforms.forEach((o,i)=>a.push({kind:'movingPlatform',arr:level.movingPlatforms,i,obj:o}));
+  (level.ghostPlatforms||[]).forEach((o,i)=>a.push({kind:'ghostPlatform',arr:level.ghostPlatforms,i,obj:o}));
+  (level.deathPlatforms||[]).forEach((o,i)=>a.push({kind:'deathPlatform',arr:level.deathPlatforms,i,obj:o}));
+  (level.spikes||[]).forEach((o,i)=>a.push({kind:'spike',arr:level.spikes,i,obj:o}));
+  level.boxes.forEach((o,i)=>a.push({kind:'box',arr:level.boxes,i,obj:o}));
+  level.plates.forEach((o,i)=>a.push({kind:'plate',arr:level.plates,i,obj:o}));
+  (level.buttons||[]).forEach((o,i)=>a.push({kind:'button',arr:level.buttons,i,obj:o}));
+  level.doors.forEach((o,i)=>a.push({kind:'door',arr:level.doors,i,obj:o}));
+  level.spirits.forEach((o,i)=>a.push({kind:'spirit',arr:level.spirits,i,obj:o}));
+  level.powerups.forEach((o,i)=>a.push({kind:'powerup',arr:level.powerups,i,obj:o}));
+  a.push({kind:'spawn',obj:level.spawn,arr:null});
+  a.push({kind:'altar',obj:level.altar,arr:null});
+  a.push({kind:'endGate',obj:level.endGate,arr:null});
+  return a;
+}
+
+function hit(x,y){
+  const refs=allRefs().reverse();
+  for(const r of refs){
+    const b=rectOf(r);
+    if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h)return r;
+  }
+  return null;
+}
+
+function saveUndo(){
+  undoStack.push(JSON.stringify(level));
+  if(undoStack.length>undoMax)undoStack.shift();
+  undoInfoEl.textContent=`cofnij: ${undoStack.length}`;
+}
+
+function undo(){
+  if(!undoStack.length)return;
+  level=JSON.parse(undoStack.pop());
+  selected=null;
+  updateProps();
+  exportJson();
+  undoInfoEl.textContent=`cofnij: ${undoStack.length}`;
+}
+
+function makeObject(t,x,y){
+  saveUndo();
+  idCounter++;
+  if(t==='platform'){
+    level.platforms.push({x,y,w:160,h:18});
+    selected=allRefs().filter(r=>r.kind==='platform').pop();
+  }else if(t==='spawnerPlatform'){
+    level.platforms.push({x,y,w:60,h:18,type:'spawner',id:'spawner_'+idCounter,boxW:40,boxH:40});
+    selected=allRefs().filter(r=>r.kind==='platform').pop();
+  }else if(t==='icePlatform'){
+    level.platforms.push({x,y,w:160,h:18,type:'ice'});
+    selected=allRefs().filter(r=>r.kind==='platform').pop();
+  }else if(t==='ghostPlatform'){
+    if(!level.ghostPlatforms) level.ghostPlatforms=[];
+    level.ghostPlatforms.push({id:'ghost_'+idCounter,x,y,w:120,h:18,disappearAfter:2,respawnAfter:1});
+    selected=allRefs().filter(r=>r.kind==='ghostPlatform').pop();
+  }else if(t==='deathPlatform'){
+    if(!level.deathPlatforms) level.deathPlatforms=[];
+    level.deathPlatforms.push({x,y,w:160,h:18});
+    selected=allRefs().filter(r=>r.kind==='deathPlatform').pop();
+  }else if(t==='spike'){
+    if(!level.spikes) level.spikes=[];
+    level.spikes.push({x,y,w:30,h:30,direction:'up'});
+    selected=allRefs().filter(r=>r.kind==='spike').pop();
+  }else if(t==='movingPlatform'){
+    level.movingPlatforms.push({x,y,w:120,h:18,axis:'x',range:180,speed:1});
+    selected=allRefs().filter(r=>r.kind==='movingPlatform').pop();
+  }else if(t==='box'){
+    level.boxes.push({x,y,w:42,h:45});
+    selected=allRefs().filter(r=>r.kind==='box').pop();
+  }else if(t==='plate'){
+    level.plates.push({id:'plate_'+idCounter,x,y,w:70,h:14,targetIds:[]});
+    selected=allRefs().filter(r=>r.kind==='plate').pop();
+  }else if(t==='button'){
+    if(!level.buttons) level.buttons=[];
+    level.buttons.push({id:'button_'+idCounter,x,y,w:42,h:22,targetIds:[],duration:5});
+    selected=allRefs().filter(r=>r.kind==='button').pop();
+  }else if(t==='door'){
+    level.doors.push({id:'door_'+idCounter,x,y,w:36,h:90});
+    selected=allRefs().filter(r=>r.kind==='door').pop();
+  }else if(t.startsWith('spirit_')){
+    const stype=t.split('_')[1];
+    level.spirits.push({id:stype+'_'+idCounter,type:stype,x:x+15,y:y+15});
+    selected=allRefs().filter(r=>r.kind==='spirit').pop();
+  }else if(t==='windRune'){
+    level.powerups=[{id:'wind_rune',type:'windRune',x:x+15,y:y+15,jumpBoost:-9.5}];
+    selected=allRefs().filter(r=>r.kind==='powerup').pop();
+  }else if(t==='spawn'){
+    level.spawn={x,y};
+    selected=allRefs().find(r=>r.kind==='spawn');
+  }else if(t==='altar'){
+    level.altar={x,y,w:45,h:60};
+    selected=allRefs().find(r=>r.kind==='altar');
+  }else if(t==='endGate'){
+    level.endGate={x,y,w:100,h:115};
+    selected=allRefs().find(r=>r.kind==='endGate');
+  }
+  updateProps();
+  exportJson();
+}
+
+// ─── RENDER ──────────────────────────────────────────────
+
+const COLORS={
+  platform:{fill:'#c9864d',stroke:'#8a5020'},
+  movingPlatform:{fill:'#d8a35f',stroke:'#8a5020'},
+  box:{fill:'#b7834e',stroke:'#6d4326'},
+  plate:{fill:'#85c46a',stroke:'#3e8f38'},
+  door:{fill:'#8f8d89',stroke:'#555'},
+  spawn:{fill:'rgba(70,160,255,.35)',stroke:'#2876d6'},
+  altar:{fill:'#b9a06b',stroke:'#6e5a30'},
+  endGate:{fill:'rgba(210,60,50,.25)',stroke:'#c03528'},
+  deathPlatform:{fill:'#ff3322',stroke:'#aa1100'},
+  spike:{fill:'#cc2200',stroke:'#880000'},
+};
+
+function drawRect(o,fill,stroke,label){
+  ctx.fillStyle=fill;
+  ctx.fillRect(o.x-cameraX,o.y-cameraY,o.w,o.h);
+  ctx.strokeStyle=stroke;
+  ctx.lineWidth=2;
+  ctx.strokeRect(o.x-cameraX,o.y-cameraY,o.w,o.h);
+  if(label){
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='11px Segoe UI';
+    ctx.fillText(label,o.x-cameraX+3,o.y-cameraY-3);
+  }
+}
+
+function drawSprite(o,color,label){
+  ctx.beginPath();
+  ctx.fillStyle=color;
+  ctx.arc(o.x-cameraX,o.y-cameraY,14,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle='#fff';
+  ctx.lineWidth=2;
+  ctx.stroke();
+  ctx.fillStyle='rgba(90,58,42,0.85)';
+  ctx.font='11px Segoe UI';
+  ctx.fillText(label,o.x-cameraX-15,o.y-cameraY-18);
+}
+
+function draw(){
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // sky
+  ctx.fillStyle='#ffeac2';
+  ctx.fillRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle='rgba(160,100,80,.15)';
+  ctx.lineWidth=1;
+  for(let x=Math.floor(cameraX/50)*50;x<cameraX+W;x+=50){
+    ctx.beginPath();ctx.moveTo(x-cameraX,0);ctx.lineTo(x-cameraX,H);ctx.stroke();
+  }
+  for(let y=Math.floor(cameraY/50)*50;y<cameraY+H;y+=50){
+    ctx.beginPath();ctx.moveTo(0,y-cameraY);ctx.lineTo(W,y-cameraY);ctx.stroke();
+  }
+
+  // grid labels every 100px
+  ctx.fillStyle='rgba(160,100,80,.4)';
+  ctx.font='10px Segoe UI';
+  for(let x=Math.floor(cameraX/100)*100;x<cameraX+W;x+=100){
+    ctx.fillText(x,x-cameraX+2,10);
+  }
+
+  // platforms
+  level.platforms.forEach(o=>{
+    if(o.type==='ice') drawRect(o,'#9eeaff','#3aa6cf','ice');
+    else if(o.type==='spawner') drawRect(o,'#f5f0e8','#c9447a','spawner E');
+    else drawRect(o,COLORS.platform.fill,COLORS.platform.stroke,'');
+  });
+
+  // moving platforms
+  level.movingPlatforms.forEach(o=>{
+    drawRect(o,COLORS.movingPlatform.fill,COLORS.movingPlatform.stroke,'');
+    ctx.strokeStyle='rgba(100,130,210,.7)';
+    ctx.setLineDash([4,3]);
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    if(o.axis==='y'){
+      ctx.moveTo(o.x+o.w/2-cameraX,o.y-o.range-cameraY);
+      ctx.lineTo(o.x+o.w/2-cameraX,o.y+o.range+o.h-cameraY);
+    }else{
+      ctx.moveTo(o.x-o.range-cameraX,o.y+o.h/2-cameraY);
+      ctx.lineTo(o.x+o.range+o.w-cameraX,o.y+o.h/2-cameraY);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='11px Segoe UI';
+    ctx.fillText('mov '+(o.axis==='y'?'↕':'↔'),o.x-cameraX+3,o.y-cameraY-3);
+  });
+
+  // ghost platforms
+  (level.ghostPlatforms||[]).forEach(o=>{
+    drawRect(o,'rgba(190,150,255,.55)','#7b52c8','ghost');
+  });
+
+  // death platforms
+  (level.deathPlatforms||[]).forEach(o=>{
+    drawRect(o,COLORS.deathPlatform.fill,COLORS.deathPlatform.stroke,'☠ death');
+  });
+
+  // spikes
+  (level.spikes||[]).forEach(o=>{
+    const cx=o.x-cameraX, cy=o.y-cameraY;
+    const w=o.w||30, h=o.h||30;
+    const dir=o.direction||'up';
+    const count=Math.max(1,Math.floor(w/15));
+    const sw=w/count;
+    ctx.fillStyle=COLORS.spike.fill;
+    ctx.strokeStyle=COLORS.spike.stroke;
+    ctx.lineWidth=1.5;
+    for(let i=0;i<count;i++){
+      const sx=cx+i*sw;
+      ctx.beginPath();
+      if(dir==='up'){
+        ctx.moveTo(sx,cy+h);
+        ctx.lineTo(sx+sw/2,cy);
+        ctx.lineTo(sx+sw,cy+h);
+      }else if(dir==='down'){
+        ctx.moveTo(sx,cy);
+        ctx.lineTo(sx+sw/2,cy+h);
+        ctx.lineTo(sx+sw,cy);
+      }else if(dir==='left'){
+        ctx.moveTo(cx+w,cy+i*sw);
+        ctx.lineTo(cx,cy+i*sw+sw/2);
+        ctx.lineTo(cx+w,cy+i*sw+sw);
+      }else{
+        ctx.moveTo(cx,cy+i*sw);
+        ctx.lineTo(cx+w,cy+i*sw+sw/2);
+        ctx.lineTo(cx,cy+i*sw+sw);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='10px Segoe UI';
+    ctx.fillText('kolce',cx,cy-3);
+  });
+
+  // boxes
+  level.boxes.forEach(o=>drawRect(o,COLORS.box.fill,COLORS.box.stroke,'box'));
+
+  // plates
+  level.plates.forEach(o=>{
+    drawRect(o,COLORS.plate.fill,COLORS.plate.stroke,'');
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='10px Segoe UI';
+    ctx.fillText(o.id,o.x-cameraX+2,o.y-cameraY-3);
+    const targets=(o.targetIds&&o.targetIds.length)?o.targetIds.join(','):(o.doorId||'');
+    if(targets){
+      ctx.fillStyle='rgba(56,120,60,0.9)';
+      ctx.font='9px Segoe UI';
+      ctx.fillText('→ '+targets,o.x-cameraX+2,o.y-cameraY+o.h+11);
+    }
+  });
+
+  // buttons
+  (level.buttons||[]).forEach(o=>{
+    drawRect(o,'#ff96d8','#9b367d','E btn');
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='10px Segoe UI';
+    ctx.fillText(o.id,o.x-cameraX+2,o.y-cameraY-3);
+    const targets=(o.targetIds&&o.targetIds.length)?o.targetIds.join(','):'';
+    if(targets){
+      ctx.fillStyle='rgba(56,120,60,0.9)';
+      ctx.font='9px Segoe UI';
+      ctx.fillText('→ '+targets,o.x-cameraX+2,o.y-cameraY+o.h+11);
+    }
+  });
+
+  // doors
+  level.doors.forEach(o=>{
+    drawRect(o,COLORS.door.fill,COLORS.door.stroke,'');
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='10px Segoe UI';
+    ctx.fillText(o.id,o.x-cameraX+2,o.y-cameraY-3);
+  });
+
+  // spirits
+  level.spirits.forEach(o=>{
+    const col=o.type==='fire'?'#ff7755':o.type==='water'?'#66d9ff':'#d6b3ff';
+    drawSprite(o,col,o.type);
+  });
+
+  // powerups (windRune - nowy wyglad: strzalka wiatru do gory)
+  level.powerups.forEach(o=>{
+    const cx=o.x-cameraX, cy=o.y-cameraY;
+    ctx.save();
+    ctx.translate(cx,cy);
+    const grad=ctx.createRadialGradient(0,0,2,0,0,22);
+    grad.addColorStop(0,'rgba(141,245,255,0.55)');
+    grad.addColorStop(1,'rgba(141,245,255,0)');
+    ctx.fillStyle=grad;
+    ctx.beginPath();
+    ctx.ellipse(0,8,20,9,0,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle='rgba(141,245,255,0.8)';
+    ctx.lineWidth=2.5;
+    ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(-16,10);
+    ctx.quadraticCurveTo(0,-4,12,-18);
+    ctx.stroke();
+
+    ctx.fillStyle='#eafdff';
+    ctx.beginPath();
+    ctx.moveTo(-4,12);
+    ctx.lineTo(4,12);
+    ctx.lineTo(4,-2);
+    ctx.lineTo(10,-2);
+    ctx.lineTo(0,-16);
+    ctx.lineTo(-10,-2);
+    ctx.lineTo(-4,-2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle='#309e9a';
+    ctx.lineWidth=1;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle='rgba(90,58,42,0.85)';
+    ctx.font='11px Segoe UI';
+    ctx.fillText('windRune',cx-22,cy-22);
+  });
+
+  // spawn
+  drawRect({x:level.spawn.x,y:level.spawn.y,w:25,h:80},COLORS.spawn.fill,COLORS.spawn.stroke,'spawn');
+
+  // altar
+  drawRect(level.altar,COLORS.altar.fill,COLORS.altar.stroke,'altar');
+
+  // endGate
+  drawRect(level.endGate,COLORS.endGate.fill,COLORS.endGate.stroke,'torii/end');
+
+  // selection highlight
+  if(selected){
+    const b=rectOf(selected);
+    ctx.strokeStyle='#ff00d4';
+    ctx.lineWidth=3;
+    ctx.setLineDash([6,3]);
+    ctx.strokeRect(b.x-cameraX-3,b.y-cameraY-3,b.w+6,b.h+6);
+    ctx.setLineDash([]);
+    // resize corner indicator
+    const hasSize=selected.obj&&selected.obj.w!==undefined;
+    if(hasSize){
+      ctx.fillStyle='#ff00d4';
+      ctx.fillRect(b.x+b.w-cameraX-5,b.y+b.h-cameraY-5,10,10);
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+// ─── PROPS PANEL ─────────────────────────────────────────
+
+const KIND_LABELS={
+  platform:'Platforma',ghostPlatform:'Widmo platformy',movingPlatform:'Ruchoma platforma',
+  deathPlatform:'Platforma śmierci',spike:'Kolce',
+  box:'Pudełko',plate:'Płytka naciskowa',button:'Przycisk E / timer',door:'Kamienne drzwi',
+  spirit:'Duszek',powerup:'Powerup',spawn:'Spawn gracza',
+  altar:'Ołtarz',endGate:'Torii / End Gate'
+};
+
+function updateProps(){
+  propsDiv.innerHTML='';
+  if(!selected){
+    selectedNameDiv.textContent='— brak zaznaczenia —';
+    return;
+  }
+
+  selectedNameDiv.textContent=(KIND_LABELS[selected.kind]||selected.kind)+(selected.obj.id?' ['+selected.obj.id+']':'');
+  const o=selected.obj;
+
+  function addField(key, labelText=key, type='auto', options=null){
+    const div=document.createElement('div');
+    div.className='row';
+
+    const lab=document.createElement('label');
+    lab.textContent=labelText;
+
+    let inp;
+    if(options){
+      inp=document.createElement('select');
+      options.forEach(v=>{
+        const opt=document.createElement('option');
+        opt.value=v;
+        opt.textContent=v;
+        if(String(o[key]||'')===String(v)) opt.selected=true;
+        inp.appendChild(opt);
+      });
+    }else{
+      inp=document.createElement('input');
+      inp.type = type==='number' || typeof o[key]==='number' ? 'number' : 'text';
+      inp.value = Array.isArray(o[key]) ? o[key].join(',') : (o[key] ?? '');
+      if(inp.type==='number') inp.step='1';
+    }
+
+    inp.oninput=()=>{
+      saveUndo();
+
+      if(key==='targetIds' || key==='requiredPlateIds' || key==='requiredPlates'){
+        o[key]=inp.value.split(',').map(v=>v.trim()).filter(Boolean);
+      }else if(inp.type==='number'){
+        o[key]=Number(inp.value);
+      }else{
+        o[key]=inp.value;
+      }
+
+      exportJson();
+    };
+
+    div.append(lab,inp);
+    propsDiv.append(div);
+  }
+
+  function addSeparator(title){
+    const hr=document.createElement('hr');
+    hr.className='propSep';
+    propsDiv.append(hr);
+    if(title){
+      const p=document.createElement('div');
+      p.className='small';
+      p.style.margin='4px 0';
+      p.textContent=title;
+      propsDiv.append(p);
+    }
+  }
+
+  // Keys rendered manually in special sections — skip them in the generic loop
+  const manualKeys = new Set();
+  if(selected.kind==='movingPlatform') ['id','controlledBy','activeWhenTriggered'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='plate') ['targetIds'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='button') ['targetIds','duration'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='door') ['requiredPlateIds'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='platform') ['id','boxW','boxH'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='ghostPlatform') ['disappearAfter','respawnAfter'].forEach(k=>manualKeys.add(k));
+  if(selected.kind==='spike') ['direction'].forEach(k=>manualKeys.add(k));
+
+  const standardKeys=Object.keys(o).filter(k=>typeof o[k]!=='object' && !['type'].includes(k) && !manualKeys.has(k));
+
+  for(const k of standardKeys){
+    if(k==='axis') addField(k,k,'text',['x','y']);
+    else addField(k);
+  }
+
+  if(selected.kind==='platform'){
+    addSeparator('Opcje platformy');
+    if(o.type===undefined) o.type='normal';
+    addField('type','typ','text',['normal','ice','spawner']);
+    if(o.type==='spawner'){
+      if(o.id===undefined) o.id='spawner_'+idCounter;
+      if(o.boxW===undefined) o.boxW=40;
+      if(o.boxH===undefined) o.boxH=40;
+      addField('id','id');
+      addField('boxW','szer. pudełka','number');
+      addField('boxH','wys. pudełka','number');
+    }
+  }
+
+  if(selected.kind==='spike'){
+    addSeparator('Kolce');
+    if(o.direction===undefined) o.direction='up';
+    addField('direction','kierunek','text',['up','down','left','right']);
+    const hint=document.createElement('div');
+    hint.className='hint';
+    hint.textContent='up = ostrza w górę (na podłodze), down = w dół (na suficie). Szerokość (w) kontroluje ile kolców.';
+    propsDiv.append(hint);
+  }
+
+  if(selected.kind==='movingPlatform'){
+    addSeparator('Aktywacja platformy');
+    if(o.id===undefined) o.id='moving_'+idCounter;
+    if(o.controlledBy===undefined) o.controlledBy='';
+    if(o.activeWhenTriggered===undefined) o.activeWhenTriggered=false;
+
+    addField('id','id');
+    addField('controlledBy','controlledBy');
+    addField('activeWhenTriggered','aktywna po triggerze','text',['false','true']);
+  }
+
+  if(selected.kind==='plate'){
+    addSeparator('Targety płytki');
+    if(o.targetIds===undefined) o.targetIds = [];
+    addField('targetIds','targetIds');
+    const hint=document.createElement('div');
+    hint.className='hint';
+    hint.textContent='Wpisz ID obiektów, które aktywuje ta płytka, np. door_1,moving_plate_1';
+    propsDiv.append(hint);
+  }
+
+  if(selected.kind==='button'){
+    addSeparator('Przycisk E z timerem');
+    if(o.targetIds===undefined) o.targetIds=[];
+    if(o.duration===undefined) o.duration=5;
+    addField('targetIds','targetIds');
+    addField('duration','czas sekund','number');
+  }
+
+  if(selected.kind==='door'){
+    addSeparator('Opcjonalnie: wymagane ID płytek');
+    if(o.requiredPlateIds===undefined) o.requiredPlateIds=[];
+    addField('requiredPlateIds','requiredPlateIds');
+    const hint=document.createElement('div');
+    hint.className='hint';
+    hint.textContent='Opcjonalne. Używaj tylko gdy drzwi mają wymagać kilku konkretnych płytek. Normalnie zostaw puste i aktywuj drzwi przez targetIds płytki/przycisku.';
+    propsDiv.append(hint);
+  }
+
+  if(selected.kind==='ghostPlatform'){
+    addSeparator('Widmo platformy');
+    if(o.disappearAfter===undefined) o.disappearAfter=2;
+    if(o.respawnAfter===undefined) o.respawnAfter=1;
+    addField('disappearAfter','znika po sek.','number');
+    addField('respawnAfter','wraca po sek.','number');
+  }
+}
+
+// ─── MOUSE EVENTS ────────────────────────────────────────
+
+canvas.onmousedown=e=>{
+  const m=getMouse(e);
+  const h=hit(m.x,m.y);
+
+  if(h){
+    // check if clicking resize corner
+    const b=rectOf(h);
+    const hasSize=h.obj&&h.obj.w!==undefined;
+    if(hasSize&&e.altKey){
+      selected=h;
+      resizing=true;
+      resizeDX=m.x;
+      resizeDY=m.y;
+      resizeOrigW=h.obj.w;
+      resizeOrigH=h.obj.h;
+      drag=false;
+      updateProps();
+      return;
+    }
+    selected=h;
+    drag=true;
+    const bx=rectOf(h);
+    dragDX=m.x-bx.x;
+    dragDY=m.y-bx.y;
+  }else{
+    // add new object
+    makeObject(toolEl.value,snapV(m.x,e),snapV(m.y,e));
+    drag=false;
+  }
+  updateProps();
+  exportJson();
+};
+
+canvas.onmousemove=e=>{
+  const m=getMouse(e);
+  mouseInfo.textContent=`x:${Math.round(m.x)} y:${Math.round(m.y)}`;
+
+  if(resizing&&selected){
+    const o=selected.obj;
+    const dx=m.x-resizeDX, dy=m.y-resizeDY;
+    o.w=Math.max(10,snapV(resizeOrigW+dx,e));
+    o.h=Math.max(6,snapV(resizeOrigH+dy,e));
+    updateProps();
+    exportJson();
+    return;
+  }
+
+  if(drag&&selected){
+    const o=selected.obj;
+    if(selected.kind==='spirit'||selected.kind==='powerup'){
+      o.x=snapV(m.x-dragDX+15,e);
+      o.y=snapV(m.y-dragDY+15,e);
+    }else{
+      o.x=snapV(m.x-dragDX,e);
+      o.y=snapV(m.y-dragDY,e);
+    }
+    // update spawn singleton
+    if(selected.kind==='spawn'){level.spawn.x=o.x;level.spawn.y=o.y;}
+    updateProps();
+    exportJson();
+  }
+
+  // cursor hint
+  if(selected){
+    const b=rectOf(selected);
+    const hasSize=selected.obj&&selected.obj.w!==undefined;
+    if(hasSize&&e.altKey&&
+       m.x>=b.x&&m.x<=b.x+b.w&&m.y>=b.y&&m.y<=b.y+b.h){
+      canvas.style.cursor='se-resize';
+    }else{
+      canvas.style.cursor='crosshair';
+    }
+  }
+};
+
+canvas.onmouseup=()=>{drag=false;resizing=false;};
+canvas.onmouseleave=()=>{drag=false;resizing=false;};
+
+// ─── KEYBOARD ────────────────────────────────────────────
+
+window.onkeydown=e=>{
+  if(e.code==='Space') spaceHeld=true;
+  const tag=document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT')return;
+
+  if(e.code==='Space'){
+    e.preventDefault();
+    return;
+  }
+
+  if(e.key==='Delete'||e.key.toLowerCase()==='x')deleteSelected();
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
+  if(e.key.toLowerCase()==='r')rotateSelected();
+
+  const step = e.shiftKey ? 10 : 1;
+
+  if(e.code==='ArrowLeft'){
+    e.preventDefault();
+    if(spaceHeld) panCamera(-40,0);
+    else nudge(-step,0);
+  }
+  if(e.code==='ArrowRight'){
+    e.preventDefault();
+    if(spaceHeld) panCamera(40,0);
+    else nudge(step,0);
+  }
+  if(e.code==='ArrowUp'){
+    e.preventDefault();
+    if(spaceHeld) panCamera(0,-40);
+    else nudge(0,-step);
+  }
+  if(e.code==='ArrowDown'){
+    e.preventDefault();
+    if(spaceHeld) panCamera(0,40);
+    else nudge(0,step);
+  }
+};
+
+window.onkeyup=e=>{
+  if(e.code==='Space') spaceHeld=false;
+};
+
+function nudge(dx,dy){
+  if(!selected)return;
+  saveUndo();
+  const o=selected.obj;
+  o.x=(o.x||0)+dx;
+  o.y=(o.y||0)+dy;
+  updateProps();
+  exportJson();
+}
+
+function rotateSelected(){
+  if(!selected || !selected.obj || selected.obj.w===undefined || selected.obj.h===undefined) return;
+  saveUndo();
+
+  const o = selected.obj;
+  const centerX = o.x + o.w / 2;
+  const centerY = o.y + o.h / 2;
+  const oldW = o.w;
+
+  o.w = o.h;
+  o.h = oldW;
+  o.x = Math.round(centerX - o.w / 2);
+  o.y = Math.round(centerY - o.h / 2);
+
+  updateProps();
+  exportJson();
+}
+
+function clampCamera(){
+  cameraX = Math.max(0, Math.min(cameraX, Math.max(0, level.world.width - canvas.width)));
+  cameraY = Math.max(-400, Math.min(cameraY, Math.max(0, level.world.height - canvas.height + 800)));
+
+  scrollEl.value = cameraX;
+  scrollNum.value = cameraX;
+  scrollYEl.value = cameraY;
+  scrollYNum.value = cameraY;
+}
+
+function centerOnSelected(){
+  if(!selected) return;
+  const b = rectOf(selected);
+  cameraX = Math.round(b.x + b.w/2 - canvas.width/2);
+  cameraY = Math.round(b.y + b.h/2 - canvas.height/2);
+  clampCamera();
+}
+
+function panCamera(dx,dy){
+  cameraX += dx;
+  cameraY += dy;
+  clampCamera();
+}
+
+function deleteSelected(){
+  if(!selected)return;
+  saveUndo();
+  if(selected.arr){
+    selected.arr.splice(selected.i,1);
+  }else if(selected.kind==='powerup'){
+    level.powerups=[];
+  }
+  // singleton kinds (spawn, altar, endGate) cannot be deleted
+  selected=null;
+  updateProps();
+  exportJson();
+}
+
+// ─── BUTTONS ─────────────────────────────────────────────
+
+document.getElementById('deleteBtn').onclick=deleteSelected;
+document.getElementById('rotateBtn').onclick=rotateSelected;
+document.getElementById('centerOnSelectedBtn').onclick=centerOnSelected;
+
+document.getElementById('duplicateBtn').onclick=()=>{
+  if(!selected||!selected.arr)return;
+  saveUndo();
+  const c=JSON.parse(JSON.stringify(selected.obj));
+  c.x=(c.x||0)+40;c.y=(c.y||0)+20;
+  if(c.id)c.id=c.id+'_copy'+(idCounter++);
+  selected.arr.push(c);
+  // select the new copy
+  selected={kind:selected.kind,arr:selected.arr,i:selected.arr.length-1,obj:selected.arr[selected.arr.length-1]};
+  updateProps();
+  exportJson();
+};
+
+document.getElementById('applyWorld').onclick=()=>{
+  saveUndo();
+  level.world.width=Number(document.getElementById('worldW').value);
+  level.world.height=Number(document.getElementById('worldH').value);
+  scrollEl.max=Math.max(0,level.world.width-canvas.width);
+  scrollYEl.max=Math.max(400,level.world.height-canvas.height+800);
+  clampCamera();
+  exportJson();
+};
+
+document.getElementById('nudgeL').onclick=()=>nudge(-1,0);
+document.getElementById('nudgeR').onclick=()=>nudge(1,0);
+document.getElementById('nudgeU').onclick=()=>nudge(0,-1);
+document.getElementById('nudgeD').onclick=()=>nudge(0,1);
+document.getElementById('nudgeL10').onclick=()=>nudge(-10,0);
+document.getElementById('nudgeR10').onclick=()=>nudge(10,0);
+document.getElementById('nudgeU10').onclick=()=>nudge(0,-10);
+document.getElementById('nudgeD10').onclick=()=>nudge(0,10);
+
+document.getElementById('moveToFloor').onclick=()=>{
+  if(!selected||!selected.obj)return;
+  saveUndo();
+  const o=selected.obj;
+  const floor=level.world.height-50-(o.h||0);
+  o.y=floor;
+  updateProps();exportJson();
+};
+
+document.getElementById('selAll').onclick=()=>{selected=null;updateProps();};
+
+// nudge via buttons also with arrows in focus
+['nudgeL','nudgeR','nudgeU','nudgeD','nudgeL10','nudgeR10','nudgeU10','nudgeD10'].forEach(id=>{
+  document.getElementById(id).onkeydown=e=>e.preventDefault();
+});
+
+// ─── SCROLL ──────────────────────────────────────────────
+
+scrollEl.oninput=()=>{
+  cameraX=Number(scrollEl.value);
+  scrollNum.value=scrollEl.value;
+};
+
+scrollNum.oninput=()=>{
+  const v=Math.max(0,Math.min(Number(scrollNum.value),Number(scrollEl.max)));
+  cameraX=v;
+  scrollEl.value=v;
+  scrollNum.value=v;
+};
+
+scrollYEl.oninput=()=>{
+  cameraY=Number(scrollYEl.value);
+  scrollYNum.value=scrollYEl.value;
+};
+
+scrollYNum.oninput=()=>{
+  const v=Math.max(Number(scrollYEl.min),Math.min(Number(scrollYNum.value),Number(scrollYEl.max)));
+  cameraY=v;
+  scrollYEl.value=v;
+  scrollYNum.value=v;
+};
+
+// ─── JSON ────────────────────────────────────────────────
+
+function cleanLevel(){
+  const cleaned = JSON.parse(JSON.stringify(level));
+
+  (cleaned.plates||[]).forEach(p=>{
+    if(!p.doorId) delete p.doorId;
+  });
+
+  (cleaned.doors||[]).forEach(d=>{
+    if(Array.isArray(d.requiredPlateIds) && d.requiredPlateIds.length === 0) delete d.requiredPlateIds;
+  });
+
+  (cleaned.movingPlatforms||[]).forEach(p=>{
+    if(p.activeWhenTriggered === 'true') p.activeWhenTriggered = true;
+    if(p.activeWhenTriggered === 'false') p.activeWhenTriggered = false;
+  });
+
+  return cleaned;
+}
+
+function exportJson(){
+  document.getElementById('jsonBox').value=JSON.stringify(cleanLevel(),null,2);
+}
+
+document.getElementById('exportBtn').onclick=exportJson;
+
+document.getElementById('copyBtn').onclick=async()=>{
+  exportJson();
+  try{await navigator.clipboard.writeText(document.getElementById('jsonBox').value);
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='✅ Skopiowano!';setTimeout(()=>btn.textContent='📋 Kopiuj',1500);
+  }catch(e){alert('Błąd schowka');}
+};
+
+document.getElementById('downloadBtn').onclick=()=>{
+  exportJson();
+  const blob=new Blob([document.getElementById('jsonBox').value],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='level_kitsune.json';a.click();URL.revokeObjectURL(a.href);
+};
+
+function importLevelObject(parsed){
+  saveUndo();
+  level=parsed;
+  selected=null;
+
+  level.platforms = level.platforms || [];
+  level.movingPlatforms = level.movingPlatforms || [];
+  level.boxes = level.boxes || [];
+  level.plates = level.plates || [];
+  level.buttons = level.buttons || [];
+  level.doors = level.doors || [];
+  level.spirits = level.spirits || [];
+  level.powerups = level.powerups || [];
+  level.ghostPlatforms = level.ghostPlatforms || [];
+  level.deathPlatforms = level.deathPlatforms || [];
+  level.spikes = level.spikes || [];
+
+  document.getElementById('worldW').value=level.world.width;
+  document.getElementById('worldH').value=level.world.height;
+  scrollEl.max=Math.max(0,level.world.width-canvas.width);
+
+  let maxId=100;
+  [...(level.plates||[]),...(level.buttons||[]),...(level.doors||[]),...(level.spirits||[]),...(level.powerups||[]),...(level.ghostPlatforms||[]),...(level.movingPlatforms||[])].forEach(o=>{
+    if(o.id){
+      const n=parseInt(o.id.replace(/\D/g,''));
+      if(!isNaN(n)&&n>maxId)maxId=n;
+    }
+  });
+
+  idCounter=maxId+1;
+  updateProps();
+  exportJson();
+  clampCamera();
+}
+
+document.getElementById('importBtn').onclick=()=>{
+  try{
+    const parsed=JSON.parse(document.getElementById('jsonBox').value);
+    importLevelObject(parsed);
+  }catch(err){
+    alert('Błąd JSON: '+err.message);
+  }
+};
+
+document.getElementById('importFileBtn').onclick=()=>{
+  document.getElementById('jsonFileInput').click();
+};
+
+document.getElementById('jsonFileInput').onchange=e=>{
+  const file=e.target.files && e.target.files[0];
+  if(!file) return;
+
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const parsed=JSON.parse(ev.target.result);
+      document.getElementById('jsonBox').value=JSON.stringify(parsed,null,2);
+      importLevelObject(parsed);
+    }catch(err){
+      alert('Błąd JSON w pliku: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+};
+
+document.getElementById('clearJsonBtn').onclick=()=>{
+  document.getElementById('jsonBox').value='';
+};
+
+// ─── CANVAS RESIZE ───────────────────────────────────────
+
+function resizeCanvas(){
+  const rect=canvasWrap.getBoundingClientRect();
+  canvas.width=rect.width;
+  canvas.height=rect.height;
+  scrollEl.max=Math.max(0,level.world.width-canvas.width);
+  scrollYEl.max=Math.max(400,level.world.height-canvas.height+800);
+  clampCamera();
+}
+
+const ro=new ResizeObserver(resizeCanvas);
+ro.observe(canvasWrap);
+
+// ─── INIT ────────────────────────────────────────────────
+
+document.getElementById('worldW').value=level.world.width;
+document.getElementById('worldH').value=level.world.height;
+exportJson();
+resizeCanvas();
+draw();
+</script>
+</body>
+</html>

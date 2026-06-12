@@ -522,7 +522,21 @@
       const camera = { x: 0, y: 0 };
       const keys = {},
         justPressed = {};
-      const gravity = 0.14;
+
+      const FIXED_UPDATE_FPS = 60;
+      const FIXED_UPDATE_STEP_MS = 1000 / FIXED_UPDATE_FPS;
+      const MAX_ACCUMULATED_TIME_MS = 250;
+
+      const BOX_GRAVITY = 0.14;
+      const PLAYER_GRAVITY = 1.05875;
+      const PLAYER_RUN_SPEED = 3.575;
+      const PLAYER_ICE_ACCEL = 0.77;
+      const PLAYER_ICE_MAX_SPEED = 9.35;
+      const PLAYER_ICE_FRICTION = 0.959289374066003;
+      const PLAYER_JUMP_POWER = -14.3;
+      const PLAYER_DASH_SPEED = 19.25;
+      const PLAYER_DASH_FRAMES = 4.363636363636363;
+      const PLAYER_PORTAL_EXIT_SPEED = 7.7;
       const FRAME_W = 96,
         FRAME_H = 96;
       const ANIMS = {
@@ -957,9 +971,11 @@
         }));
         powerups = clone(level.powerups || []).map((p) => ({
           ...p,
-          w: 34,
-          h: 34,
+          w: p.w || 34,
+          h: p.h || 34,
           collected: false,
+          jumpBoost:
+            typeof p.jumpBoost === "number" ? p.jumpBoost * 2.75 : -26.125,
         }));
 
         buttons = clone(level.buttons || []).map((b) => ({
@@ -1217,7 +1233,7 @@
           const entityCenter = entity.x + entity.w / 2;
           const dir = entityCenter >= exitCenter ? 1 : -1;
 
-          entity.vx = dir * Math.max(2.8, Math.abs(vx || 0));
+          entity.vx = dir * Math.max(PLAYER_PORTAL_EXIT_SPEED, Math.abs(vx || 0));
           entity.vy = Math.max(-1.5, Math.min(1.5, vy || 0));
         }
 
@@ -1247,7 +1263,7 @@
             {
               const exitCenter = portals.blue.x + portals.blue.w / 2;
               const playerCenter = player.x + player.w / 2;
-              player.vx = playerCenter >= exitCenter ? 2.8 : -2.8;
+              player.vx = playerCenter >= exitCenter ? PLAYER_PORTAL_EXIT_SPEED : -PLAYER_PORTAL_EXIT_SPEED;
             }
             playSound(sounds.portalTeleport);
             markTeleported(player, playerPortalState);
@@ -1265,7 +1281,7 @@
             {
               const exitCenter = portals.red.x + portals.red.w / 2;
               const playerCenter = player.x + player.w / 2;
-              player.vx = playerCenter >= exitCenter ? 2.8 : -2.8;
+              player.vx = playerCenter >= exitCenter ? PLAYER_PORTAL_EXIT_SPEED : -PLAYER_PORTAL_EXIT_SPEED;
             }
             playSound(sounds.portalTeleport);
             markTeleported(player, playerPortalState);
@@ -1454,7 +1470,7 @@
           b.prevY = b.y;
           if (b.portalCooldown === undefined) b.portalCooldown = 0;
           if (b.portalCooldown > 0) b.portalCooldown--;
-          b.vy += gravity;
+          b.vy += BOX_GRAVITY;
           b.x += b.vx;
           b.y += b.vy;
           if (b.onGround) b.vx *= 0.86;
@@ -1722,7 +1738,7 @@
             player.vy = p.jumpBoost;
             player.onGround = false;
             playSound("windRune");
-            p.runeCooldown = 35;
+            p.runeCooldown = 13;
           }
         }
 
@@ -1765,21 +1781,21 @@
         const now = Date.now();
         if (keys.KeyQ && !player.dashActive && now >= player.dashCooldownEnd) {
           player.dashActive = true;
-          player.dashTimer = 12;
+          player.dashTimer = PLAYER_DASH_FRAMES;
           player.dashCooldownEnd = now + 5000;
           playSound("dash");
         }
         if (player.dashActive) {
           player.dashTimer--;
           if (player.dashTimer <= 0) player.dashActive = false;
-          player.vx = 7 * player.facing;
+          player.vx = PLAYER_DASH_SPEED * player.facing;
         }
         if (!player.dashActive) {
           const onIce =
             player.onGround &&
             player.standingOn &&
             player.standingOn.type === "ice";
-          const moveSpeed = onIce ? 0.28 : 1.3;
+          const moveSpeed = onIce ? PLAYER_ICE_ACCEL : PLAYER_RUN_SPEED;
 
           if (keys.ArrowLeft || keys.KeyA) {
             player.vx = onIce ? player.vx - moveSpeed : -moveSpeed;
@@ -1788,15 +1804,15 @@
             player.vx = onIce ? player.vx + moveSpeed : moveSpeed;
             player.facing = 1;
           } else {
-            player.vx = onIce ? player.vx * 0.985 : 0;
+            player.vx = onIce ? player.vx * PLAYER_ICE_FRICTION : 0;
           }
 
           if (onIce) {
-            player.vx = Math.max(-3.4, Math.min(3.4, player.vx));
+            player.vx = Math.max(-PLAYER_ICE_MAX_SPEED, Math.min(PLAYER_ICE_MAX_SPEED, player.vx));
           }
         }
         if ((keys.ArrowUp || keys.KeyW || keys.Space) && player.onGround) {
-          player.vy = -5.2;
+          player.vy = PLAYER_JUMP_POWER;
           player.onGround = false;
           playSound("jump");
         }
@@ -1804,7 +1820,7 @@
           restartCurrentLevel();
         }
         player._savedVx = player.vx;
-        player.vy += gravity;
+        player.vy += PLAYER_GRAVITY;
         player.x += player.vx;
         player.y += player.vy;
         updateBoxes();
@@ -2649,8 +2665,21 @@
         ctx.restore();
       }
 
-      function loop() {
-        update();
+      function loop(timestamp) {
+        if (!lastLoopTimestamp) lastLoopTimestamp = timestamp;
+
+        let frameTime = timestamp - lastLoopTimestamp;
+        lastLoopTimestamp = timestamp;
+
+        // Po powrocie do karty nie nadrabiamy ogromnej liczby update'ów naraz.
+        frameTime = Math.min(frameTime, MAX_ACCUMULATED_TIME_MS);
+        accumulatedTime += frameTime;
+
+        while (accumulatedTime >= FIXED_UPDATE_STEP_MS) {
+          update();
+          accumulatedTime -= FIXED_UPDATE_STEP_MS;
+        }
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawBackground();
         ctx.save();
@@ -2673,7 +2702,7 @@
         drawTimedActivationHUD();
         drawPortalStatusHUD();
         drawDashCooldownHUD();
-requestAnimationFrame(loop);
+        requestAnimationFrame(loop);
       }
 
       // =========================
@@ -2740,6 +2769,8 @@ requestAnimationFrame(loop);
 
         if (!loopRunning) {
           loopRunning = true;
+          lastLoopTimestamp = 0;
+          accumulatedTime = 0;
           requestAnimationFrame(loop);
         }
       }
@@ -2813,6 +2844,8 @@ requestAnimationFrame(loop);
       });
 
       let loopRunning = false;
+      let lastLoopTimestamp = 0;
+      let accumulatedTime = 0;
       hideGameScreen();
       sprite.onload = () => {}; // loop startuje dopiero po wyborze pliku lub kliknięciu pomiń
     </script>

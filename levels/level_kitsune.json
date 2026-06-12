@@ -418,8 +418,8 @@
       "axis": "y",
       "range": 65,
       "speed": 1,
-      "id": "moving_120117132120117140_copy120117132120117140_copy1.2011713212011714e+71",
-      "controlledBy": "",
+      "id": "moving_end",
+      "controlledBy": "plate_end",
       "activeWhenTriggered": true
     }
   ],
@@ -578,13 +578,13 @@
       ]
     },
     {
-      "id": "plate_1.2011713212011714e+71",
+      "id": "plate_end",
       "x": 4400,
       "y": 690,
       "w": 70,
       "h": 14,
       "targetIds": [
-        "moving_120117132120117140_copy120117132120117140_copy1.2011713212011714e"
+        "moving_end"
       ]
     }
   ],
